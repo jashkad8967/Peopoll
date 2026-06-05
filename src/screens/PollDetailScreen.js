@@ -13,6 +13,7 @@ import {
   Timestamp,
   increment
 } from 'firebase/firestore';
+import { useTheme } from '../theme/ThemeContext';
 
 function formatTimeLabel(timestamp) {
   if (!timestamp) return '';
@@ -20,8 +21,15 @@ function formatTimeLabel(timestamp) {
   return date.toISOString().slice(11, 16);
 }
 
+function formatDateLabel(timestamp) {
+  if (!timestamp) return 'Unknown';
+  const date = timestamp.toDate ? timestamp.toDate() : timestamp;
+  return date.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' });
+}
+
 export default function PollDetailScreen({ route }) {
   const { pollId } = route.params;
+  const { theme } = useTheme();
   const [poll, setPoll] = useState(null);
   const [userVote, setUserVote] = useState(null);
   const [selectedChoiceId, setSelectedChoiceId] = useState(null);
@@ -192,59 +200,72 @@ export default function PollDetailScreen({ route }) {
 
   if (loading) {
     return (
-      <View style={styles.loaderContainer}>
-        <ActivityIndicator size="large" color="#1d4ed8" />
+      <View style={[styles.loaderContainer, { backgroundColor: theme.background }]}> 
+        <ActivityIndicator size="large" color={theme.accent} />
       </View>
     );
   }
 
   if (!poll) {
     return (
-      <View style={styles.emptyContainer}>
-        <Text style={styles.emptyTitle}>Poll not found</Text>
+      <View style={[styles.emptyContainer, { backgroundColor: theme.background }]}> 
+        <Text style={[styles.emptyTitle, { color: theme.text }]}>Poll not found</Text>
       </View>
     );
   }
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.title}>{poll.title}</Text>
-      <Text style={styles.description}>{poll.description || 'No description available.'}</Text>
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Vote</Text>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}> 
+      <View style={[styles.metaBox, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <Text style={[styles.category, { color: theme.accent }]}>{poll.category || 'General'}</Text>
+        <Text style={[styles.metaSub, { color: theme.subtext }]}>{formatDateLabel(poll.createdAt)} • {poll.allowMultiple ? 'Multiple answers allowed' : 'Single answer'}</Text>
+      </View>
+      <Text style={[styles.title, { color: theme.text }]}>{poll.title}</Text>
+      <Text style={[styles.description, { color: theme.subtext }]}>{poll.description || 'No description available.'}</Text>
+
+      <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Vote</Text>
         {voteOptions.map((choice) => {
           const selected = choice.id === selectedChoiceId;
+          const progress = (choice.count || 0) / Math.max(1, poll.totalVotes || 1);
           return (
             <TouchableOpacity
               key={choice.id}
-              style={[styles.choiceButton, selected && styles.choiceButtonSelected]}
+              style={[styles.choiceButton, { backgroundColor: selected ? theme.accentSoft : theme.background, borderColor: selected ? theme.accent : theme.border }]}
               onPress={() => canVote && handleVote(choice.id)}
               disabled={!canVote}
             >
-              <Text style={[styles.choiceText, selected && styles.choiceTextSelected]}>{choice.label}</Text>
-              <Text style={styles.choiceCount}>{choice.count || 0} votes</Text>
+              <View style={styles.choiceTextGroup}>
+                <Text style={[styles.choiceText, { color: theme.text }]}>{choice.label}</Text>
+                <View style={[styles.progressBar, { backgroundColor: theme.border }]}> 
+                  <View style={[styles.progressFill, { width: `${Math.min(progress * 100, 100)}%`, backgroundColor: theme.accent }]} />
+                </View>
+              </View>
+              <Text style={[styles.choiceCount, { color: theme.subtext }]}>{choice.count || 0}</Text>
             </TouchableOpacity>
           );
         })}
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Trend history</Text>
+      <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Trend history</Text>
         {latestTrend.length === 0 ? (
-          <Text style={styles.emptySubtitle}>Trend history begins as people vote.</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.subtext }]}>Trend history begins as people vote.</Text>
         ) : (
           latestTrend.map((snapshot) => (
-            <View key={snapshot.id} style={styles.trendRow}>
-              <Text style={styles.trendLabel}>{snapshot.label}</Text>
+            <View key={snapshot.id} style={[styles.trendRow, { backgroundColor: theme.background, borderColor: theme.border }]}> 
+              <Text style={[styles.trendLabel, { color: theme.text }]}>{snapshot.label}</Text>
               <View style={styles.trendBars}>
                 {voteOptions.map((choice) => {
                   const value = snapshot.counts?.[choice.id] || 0;
-                  const width = (value / maxTrendValue) * 180;
+                  const width = (value / maxTrendValue) * 220;
                   return (
                     <View key={choice.id} style={styles.trendBarRow}>
-                      <Text style={styles.trendChoice}>{choice.label}</Text>
-                      <View style={[styles.trendBar, { width }]} />
-                      <Text style={styles.trendValue}>{value}</Text>
+                      <Text style={[styles.trendChoice, { color: theme.subtext }]}>{choice.label}</Text>
+                      <View style={[styles.trendBar, { backgroundColor: theme.border }]}> 
+                        <View style={[styles.trendFill, { width, backgroundColor: theme.accent }]} />
+                      </View>
+                      <Text style={[styles.trendValue, { color: theme.subtext }]}>{value}</Text>
                     </View>
                   );
                 })}
@@ -254,25 +275,26 @@ export default function PollDetailScreen({ route }) {
         )}
       </View>
 
-      <View style={styles.section}>
-        <Text style={styles.sectionTitle}>Comments</Text>
+      <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Comments</Text>
         <TextInput
-          style={styles.commentInput}
+          style={[styles.commentInput, { backgroundColor: theme.background, borderColor: theme.border, color: theme.text }]}
           placeholder="Share your opinion"
+          placeholderTextColor={theme.placeholder}
           value={newComment}
           onChangeText={setNewComment}
           multiline
         />
-        <TouchableOpacity style={[styles.button, sendingComment && styles.buttonDisabled]} onPress={handleAddComment} disabled={sendingComment}>
-          <Text style={styles.buttonText}>{sendingComment ? 'Posting...' : 'Post comment'}</Text>
+        <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }, sendingComment && styles.buttonDisabled]} onPress={handleAddComment} disabled={sendingComment}>
+          <Text style={[styles.buttonText, { color: theme.card }]}>{sendingComment ? 'Posting...' : 'Post comment'}</Text>
         </TouchableOpacity>
         {comments.length === 0 ? (
-          <Text style={styles.emptySubtitle}>No comments yet. Be the first to reply.</Text>
+          <Text style={[styles.emptySubtitle, { color: theme.subtext }]}>No comments yet. Be the first to reply.</Text>
         ) : (
           comments.map((comment) => (
-            <View key={comment.id} style={styles.commentCard}>
-              <Text style={styles.commentText}>{comment.text}</Text>
-              <Text style={styles.commentMeta}>{comment.userId || 'Anonymous'}</Text>
+            <View key={comment.id} style={[styles.commentCard, { backgroundColor: theme.background, borderColor: theme.border }]}> 
+              <Text style={[styles.commentText, { color: theme.text }]}>{comment.text}</Text>
+              <Text style={[styles.commentMeta, { color: theme.subtext }]}>{comment.userId || 'Anonymous'}</Text>
             </View>
           ))
         )}
@@ -283,142 +305,211 @@ export default function PollDetailScreen({ route }) {
 
 const styles = StyleSheet.create({
   container: {
-    padding: 16,
-    backgroundColor: '#f9fafb'
+    padding: 18,
+    paddingBottom: 32
   },
   loaderContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff'
+    alignItems: 'center'
   },
   emptyContainer: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff'
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '700'
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 8
-  },
-  description: {
-    color: '#4b5563',
-    marginBottom: 16
-  },
-  section: {
-    marginBottom: 22
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    marginBottom: 12
-  },
-  choiceButton: {
-    backgroundColor: '#fff',
-    borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
-    flexDirection: 'row',
-    justifyContent: 'space-between',
     alignItems: 'center'
   },
-  choiceButtonSelected: {
-    borderColor: '#2563eb',
-    backgroundColor: '#e0e7ff'
+  emptyTitle: {
+    fontSize: 22,
+    fontWeight: '800',
+    letterSpacing: 0.3
+  },
+  metaBox: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 16,
+    marginBottom: 18,
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3
+  },
+  category: {
+    fontSize: 14,
+    fontWeight: '800',
+    marginBottom: 8,
+    letterSpacing: 0.3
+  },
+  metaSub: {
+    fontSize: 13,
+    lineHeight: 20,
+    fontWeight: '500'
+  },
+  title: {
+    fontSize: 28,
+    fontWeight: '900',
+    marginBottom: 12,
+    letterSpacing: -0.5
+  },
+  description: {
+    fontSize: 15,
+    lineHeight: 24,
+    marginBottom: 20,
+    fontWeight: '500'
+  },
+  section: {
+    marginBottom: 24,
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 24,
+    shadowOffset: { width: 0, height: 12 },
+    elevation: 8
+  },
+  sectionTitle: {
+    fontSize: 19,
+    fontWeight: '800',
+    marginBottom: 18,
+    letterSpacing: 0.3
+  },
+  choiceButton: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
+  },
+  choiceTextGroup: {
+    flex: 1,
+    marginRight: 14
   },
   choiceText: {
     fontSize: 16,
-    color: '#111827'
+    fontWeight: '800',
+    marginBottom: 10,
+    letterSpacing: 0.2
   },
-  choiceTextSelected: {
-    fontWeight: '700'
+  progressBar: {
+    height: 10,
+    borderRadius: 8,
+    overflow: 'hidden'
+  },
+  progressFill: {
+    height: '100%'
   },
   choiceCount: {
-    color: '#6b7280',
-    fontSize: 14
+    fontSize: 15,
+    fontWeight: '800',
+    letterSpacing: 0.3
   },
   trendRow: {
-    marginBottom: 16,
-    padding: 12,
-    backgroundColor: '#fff',
-    borderRadius: 14,
+    borderRadius: 16,
+    padding: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb'
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2
   },
   trendLabel: {
-    fontSize: 14,
-    fontWeight: '700',
-    marginBottom: 10
+    fontSize: 13,
+    fontWeight: '800',
+    marginBottom: 12,
+    letterSpacing: 0.3
   },
   trendBars: {
-    gap: 8
+    marginBottom: 4
   },
   trendBarRow: {
-    marginBottom: 10
+    marginBottom: 14
   },
   trendChoice: {
     fontSize: 14,
-    color: '#374151'
+    marginBottom: 6,
+    fontWeight: '600'
   },
   trendBar: {
-    height: 10,
-    borderRadius: 6,
-    backgroundColor: '#2563eb',
-    marginVertical: 6
+    borderRadius: 10,
+    overflow: 'hidden',
+    height: 12,
+    marginBottom: 6
+  },
+  trendFill: {
+    height: '100%'
   },
   trendValue: {
-    color: '#6b7280',
-    fontSize: 12
+    fontSize: 12,
+    fontWeight: '700'
   },
   commentInput: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 14,
-    padding: 14,
-    marginBottom: 12,
-    backgroundColor: '#fff',
-    minHeight: 80,
-    textAlignVertical: 'top'
+    borderRadius: 16,
+    padding: 16,
+    minHeight: 100,
+    textAlignVertical: 'top',
+    marginBottom: 14,
+    fontSize: 15,
+    fontWeight: '500',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2
   },
   button: {
-    backgroundColor: '#1d4ed8',
-    padding: 14,
-    borderRadius: 14,
-    alignItems: 'center'
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 5
   },
   buttonDisabled: {
     opacity: 0.6
   },
   buttonText: {
-    color: '#fff',
-    fontWeight: '700'
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3
   },
   emptySubtitle: {
-    color: '#6b7280'
+    fontSize: 15,
+    lineHeight: 22,
+    fontWeight: '500'
   },
   commentCard: {
-    backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 14,
-    marginTop: 12,
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: '#e5e7eb'
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2
   },
   commentText: {
     fontSize: 15,
     marginBottom: 8,
-    color: '#111827'
+    fontWeight: '500',
+    lineHeight: 22
   },
   commentMeta: {
-    fontSize: 12,
-    color: '#6b7280'
+    fontSize: 13,
+    fontWeight: '600'
   }
 });

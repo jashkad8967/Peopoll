@@ -4,16 +4,22 @@ import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { auth } from './src/firebase/firebaseApp';
 import { onAuthStateChanged } from 'firebase/auth';
+import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+
+function MainNavigator() {
+  const { navTheme } = useTheme();
+  return (
+    <NavigationContainer theme={navTheme}>
+      <AppNavigator />
+    </NavigationContainer>
+  );
+}
 
 export default function App() {
   const [isReady, setIsReady] = useState(false);
 
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, () => {
-      // Allow the app to render regardless of auth state. Do not attempt
-      // anonymous sign-in here because some Firebase projects disallow it
-      // (auth/admin-restricted-operation). Provide explicit sign-in UI
-      // instead.
       setIsReady(true);
     });
 
@@ -23,15 +29,15 @@ export default function App() {
   if (!isReady) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#1d4ed8" />
+        <ActivityIndicator size="large" color="#2563eb" />
       </View>
     );
   }
 
   return (
-    <NavigationContainer>
-      <AppNavigator />
-    </NavigationContainer>
+    <ThemeProvider>
+      <MainNavigator />
+    </ThemeProvider>
   );
 }
 
@@ -40,6 +46,6 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#fff'
+    backgroundColor: '#f8fafc'
   }
 });

@@ -1,16 +1,19 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView } from 'react-native';
+import { View, Text, TextInput, StyleSheet, TouchableOpacity, Alert, ScrollView, Switch, FlatList } from 'react-native';
 import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
-import { db } from '../firebase/firebaseApp';
-import { auth } from '../firebase/firebaseApp';
+import { db, auth } from '../firebase/firebaseApp';
+import { useTheme } from '../theme/ThemeContext';
 
 const defaultChoices = ['', '', '', ''];
+const categorySuggestions = ['Politics', 'Sports', 'Technology', 'Lifestyle', 'Entertainment', 'Business', 'General'];
 
 export default function CreatePollScreen({ navigation }) {
+  const { theme } = useTheme();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
-  const [category, setCategory] = useState('Trending');
+  const [category, setCategory] = useState('General');
   const [choices, setChoices] = useState(defaultChoices);
+  const [allowMultiple, setAllowMultiple] = useState(false);
   const [saving, setSaving] = useState(false);
 
   const handleChoiceChange = (index, value) => {
@@ -26,7 +29,10 @@ export default function CreatePollScreen({ navigation }) {
       return;
     }
 
-    const validChoices = choices.filter(choice => choice.trim().length > 0).map((choice, index) => ({ id: `choice-${index + 1}`, label: choice.trim(), count: 0 }));
+    const validChoices = choices
+      .filter((choice) => choice.trim().length > 0)
+      .map((choice, index) => ({ id: `choice-${index + 1}`, label: choice.trim(), count: 0 }));
+
     if (!title.trim() || validChoices.length < 2) {
       Alert.alert('Invalid poll', 'Please provide a title and at least two answer options.');
       return;
@@ -42,7 +48,7 @@ export default function CreatePollScreen({ navigation }) {
         totalVotes: 0,
         authorId: user.uid,
         createdAt: serverTimestamp(),
-        allowMultiple: false,
+        allowMultiple,
         expiresAt: null
       };
       const pollsCollection = collection(db, 'polls');
@@ -50,46 +56,80 @@ export default function CreatePollScreen({ navigation }) {
       navigation.goBack();
     } catch (error) {
       console.error('Failed to create poll', error);
-      Alert.alert('Unable to create poll', error.message);
+      Alert.alert('Unable to create poll', error.message || 'Please try again later.');
     } finally {
       setSaving(false);
     }
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.container}>
-      <Text style={styles.heading}>Create a new poll</Text>
+    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}> 
+      <Text style={[styles.heading, { color: theme.text }]}>Create a poll</Text>
+      <Text style={[styles.subHeading, { color: theme.subtext }]}>Build a thoughtful question and select the right category for your audience.</Text>
+
       <TextInput
-        style={styles.input}
+        style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
         placeholder="Poll question"
+        placeholderTextColor={theme.placeholder}
         value={title}
         onChangeText={setTitle}
       />
+
       <TextInput
-        style={[styles.input, styles.multiline]}
+        style={[styles.input, styles.multiline, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
         placeholder="Description (optional)"
+        placeholderTextColor={theme.placeholder}
         value={description}
         onChangeText={setDescription}
         multiline
       />
+
       <TextInput
-        style={styles.input}
-        placeholder="Category (e.g. Politics, Sports)"
+        style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
+        placeholder="Category"
+        placeholderTextColor={theme.placeholder}
         value={category}
         onChangeText={setCategory}
       />
-      <Text style={styles.subTitle}>Answer options</Text>
+
+      <FlatList
+        horizontal
+        showsHorizontalScrollIndicator={false}
+        data={categorySuggestions}
+        keyExtractor={(item) => item}
+        contentContainerStyle={styles.categoryRow}
+        renderItem={({ item }) => (
+          <TouchableOpacity
+            style={[styles.tag, { backgroundColor: item === category ? theme.accent : theme.surface, borderColor: theme.border }]}
+            onPress={() => setCategory(item)}
+          >
+            <Text style={[styles.tagText, { color: item === category ? theme.card : theme.text }]}>{item}</Text>
+          </TouchableOpacity>
+        )}
+      />
+
+      <Text style={[styles.subTitle, { color: theme.text }]}>Answer options</Text>
       {choices.map((choice, index) => (
         <TextInput
           key={index}
-          style={styles.input}
+          style={[styles.input, { backgroundColor: theme.surface, borderColor: theme.border, color: theme.text }]}
           placeholder={`Option ${index + 1}`}
+          placeholderTextColor={theme.placeholder}
           value={choice}
-          onChangeText={value => handleChoiceChange(index, value)}
+          onChangeText={(value) => handleChoiceChange(index, value)}
         />
       ))}
-      <TouchableOpacity style={[styles.button, saving && styles.buttonDisabled]} onPress={handleCreate} disabled={saving}>
-        <Text style={styles.buttonText}>{saving ? 'Creating...' : 'Publish poll'}</Text>
+
+      <View style={[styles.switchRow, { borderColor: theme.border }]}> 
+        <View>
+          <Text style={[styles.switchLabel, { color: theme.text }]}>Allow multiple answers</Text>
+          <Text style={[styles.switchDescription, { color: theme.subtext }]}>Voters can choose more than one option in this poll.</Text>
+        </View>
+        <Switch value={allowMultiple} onValueChange={setAllowMultiple} trackColor={{ false: '#9ca3af', true: theme.accent }} thumbColor={allowMultiple ? '#fff' : '#fff'} />
+      </View>
+
+      <TouchableOpacity style={[styles.button, { backgroundColor: theme.accent }]} onPress={handleCreate} disabled={saving}>
+        <Text style={styles.buttonText}>{saving ? 'Publishing…' : 'Publish poll'}</Text>
       </TouchableOpacity>
     </ScrollView>
   );
@@ -98,44 +138,100 @@ export default function CreatePollScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     padding: 20,
-    backgroundColor: '#fff'
+    paddingBottom: 40
   },
   heading: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 16
+    fontSize: 32,
+    fontWeight: '900',
+    marginBottom: 6,
+    letterSpacing: -0.5
   },
-  subTitle: {
+  subHeading: {
     fontSize: 16,
-    marginTop: 12,
-    marginBottom: 4,
-    fontWeight: '600'
+    marginBottom: 24,
+    lineHeight: 24
   },
   input: {
     borderWidth: 1,
-    borderColor: '#d1d5db',
-    borderRadius: 10,
-    padding: 12,
-    marginBottom: 12,
-    fontSize: 16
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
+    fontSize: 16,
+    fontWeight: '500',
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2
   },
   multiline: {
-    minHeight: 100,
+    minHeight: 120,
     textAlignVertical: 'top'
   },
-  button: {
-    backgroundColor: '#1d4ed8',
-    padding: 16,
-    borderRadius: 12,
-    alignItems: 'center',
-    marginTop: 8
+  subTitle: {
+    fontSize: 17,
+    fontWeight: '800',
+    marginBottom: 14,
+    letterSpacing: 0.3
   },
-  buttonDisabled: {
-    opacity: 0.6
+  categoryRow: {
+    marginBottom: 20
+  },
+  tag: {
+    borderWidth: 2,
+    borderRadius: 999,
+    paddingVertical: 12,
+    paddingHorizontal: 18,
+    marginRight: 12,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2
+  },
+  tagText: {
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.3
+  },
+  switchRow: {
+    borderWidth: 1,
+    borderRadius: 20,
+    padding: 18,
+    marginVertical: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3
+  },
+  switchLabel: {
+    fontSize: 16,
+    fontWeight: '800',
+    letterSpacing: 0.3
+  },
+  switchDescription: {
+    fontSize: 14,
+    marginTop: 4,
+    fontWeight: '500'
+  },
+  button: {
+    paddingVertical: 18,
+    borderRadius: 16,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    shadowOffset: { width: 0, height: 8 },
+    elevation: 6
   },
   buttonText: {
     color: '#fff',
     fontSize: 16,
-    fontWeight: '700'
+    fontWeight: '800',
+    letterSpacing: 0.3
   }
 });
