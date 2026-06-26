@@ -1,14 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { db } from '../firebase/firebaseApp';
 import PollCard from '../components/PollCard';
+import PollModal from '../components/PollModal';
 import { useTheme } from '../theme/ThemeContext';
 
 export default function FeaturedScreen({ navigation }) {
   const { theme } = useTheme();
   const [featuredPolls, setFeaturedPolls] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [activePoll, setActivePoll] = useState(null);
 
   useEffect(() => {
     const pollsQuery = query(collection(db, 'polls'), orderBy('totalVotes', 'desc'), limit(8));
@@ -36,54 +38,82 @@ export default function FeaturedScreen({ navigation }) {
   }, [featuredPolls]);
 
   const renderItem = ({ item }) => (
-    <PollCard poll={item} onPress={() => navigation.navigate('PollDetail', { pollId: item.id })} />
+    <PollCard poll={item} onPress={() => setActivePoll(item)} />
   );
 
-  return (
-    <ScrollView contentContainerStyle={[styles.container, { backgroundColor: theme.background }]}> 
+  const renderHeader = () => (
+    <>
       <View style={styles.hero}>
         <Text style={[styles.heroTitle, { color: theme.text }]}>Featured polls</Text>
         <Text style={[styles.heroSubtitle, { color: theme.subtext }]}>Curated by community activity and public interest.</Text>
       </View>
 
-      <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+      <View style={[styles.summaryCard, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.summaryHeading, { color: theme.text }]}>Your pulse check</Text>
         <Text style={[styles.summaryBody, { color: theme.subtext }]}>Top-ranked polls are shown here to make exploration fast and intuitive.</Text>
       </View>
 
       <View style={styles.categoryOverview}>
         {topCategories.map((item) => (
-          <View key={item.category} style={[styles.categoryBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
+          <View key={item.category} style={[styles.categoryBadge, { backgroundColor: theme.surface, borderColor: theme.border }]}>
             <Text style={[styles.categoryLabel, { color: theme.text }]}>{item.category}</Text>
             <Text style={[styles.categoryValue, { color: theme.accent }]}>{item.value} poll{item.value === 1 ? '' : 's'}</Text>
           </View>
         ))}
       </View>
+    </>
+  );
 
-      {loading ? (
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        {renderHeader()}
         <ActivityIndicator size="large" color={theme.accent} style={styles.loader} />
-      ) : featuredPolls.length === 0 ? (
+      </View>
+    );
+  }
+
+  if (featuredPolls.length === 0) {
+    return (
+      <View style={[styles.container, { backgroundColor: theme.background }]}>
+        {renderHeader()}
         <View style={styles.emptyState}>
           <Text style={[styles.emptyTitle, { color: theme.text }]}>No featured polls yet</Text>
           <Text style={[styles.emptySubtitle, { color: theme.subtext }]}>Start by publishing polls and watch the community elevate the best topics.</Text>
         </View>
-      ) : (
-        <FlatList
-          data={featuredPolls}
-          keyExtractor={(item) => item.id}
-          renderItem={renderItem}
-          contentContainerStyle={styles.list}
-          ItemSeparatorComponent={() => <View style={styles.separator} />}
-        />
-      )}
-    </ScrollView>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ flex: 1, backgroundColor: theme.background }}>
+      <FlatList
+        style={{ backgroundColor: theme.background }}
+        contentContainerStyle={styles.container}
+        data={featuredPolls}
+        keyExtractor={(item) => item.id}
+        renderItem={renderItem}
+        ListHeaderComponent={renderHeader}
+        ItemSeparatorComponent={() => <View style={styles.separator} />}
+        showsVerticalScrollIndicator={false}
+      />
+      <PollModal
+        pollId={activePoll?.id}
+        initialPoll={activePoll}
+        visible={!!activePoll}
+        onClose={() => setActivePoll(null)}
+      />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     padding: 16,
-    paddingBottom: 28
+    paddingBottom: 28,
+    width: '100%',
+    maxWidth: 720,
+    alignSelf: 'center'
   },
   hero: {
     marginBottom: 20

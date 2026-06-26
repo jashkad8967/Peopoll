@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, ActivityIndicator, Alert } from 'react-native';
 import { auth, db } from '../firebase/firebaseApp';
 import {
@@ -8,18 +8,11 @@ import {
   query,
   orderBy,
   addDoc,
-  serverTimestamp,
-  runTransaction,
-  Timestamp,
-  increment
+  serverTimestamp
 } from 'firebase/firestore';
 import { useTheme } from '../theme/ThemeContext';
-
-function formatTimeLabel(timestamp) {
-  if (!timestamp) return '';
-  const date = timestamp.toDate ? timestamp.toDate() : timestamp;
-  return date.toISOString().slice(11, 16);
-}
+import { castPollVote } from '../utils/pollVoting';
+import TrendChart from '../components/TrendChart';
 
 function formatDateLabel(timestamp) {
   if (!timestamp) return 'Unknown';
@@ -97,56 +90,8 @@ export default function PollDetailScreen({ route }) {
     }
 
     setSavingVote(true);
-    const pollRef = doc(db, 'polls', pollId);
-    const voteRef = doc(db, 'polls', pollId, 'votes', auth.currentUser.uid);
-    const bucketId = new Date().toISOString().slice(0, 13).replace(/:/g, '-');
-    const snapshotRef = doc(db, 'polls', pollId, 'trendSnapshots', bucketId);
-
     try {
-      await runTransaction(db, async (tx) => {
-        const pollDoc = await tx.get(pollRef);
-        if (!pollDoc.exists()) {
-          throw new Error('Poll no longer exists');
-        }
-
-        const voteDoc = await tx.get(voteRef);
-        const previousChoiceId = voteDoc.exists() ? voteDoc.data().choiceId : null;
-        const currentPoll = pollDoc.data();
-        const updatedChoices = (currentPoll.choices || []).map((choice) => {
-          if (choice.id === choiceId) {
-            return { ...choice, count: (choice.count || 0) + 1 };
-          }
-          if (choice.id === previousChoiceId) {
-            return { ...choice, count: Math.max(0, (choice.count || 0) - 1) };
-          }
-          return choice;
-        });
-
-        const totalVotes = currentPoll.totalVotes || 0;
-        const updatedTotalVotes = previousChoiceId ? totalVotes : totalVotes + 1;
-
-        tx.update(pollRef, {
-          choices: updatedChoices,
-          totalVotes: updatedTotalVotes
-        });
-
-        tx.set(voteRef, {
-          userId: auth.currentUser.uid,
-          choiceId,
-          votedAt: Timestamp.now()
-        }, { merge: true });
-
-        const snapshotUpdate = {
-          timestamp: Timestamp.now(),
-          totalVotes: increment(previousChoiceId ? 0 : 1),
-          [`counts.${choiceId}`]: increment(1)
-        };
-        if (previousChoiceId) {
-          snapshotUpdate[`counts.${previousChoiceId}`] = increment(-1);
-        }
-
-        tx.set(snapshotRef, snapshotUpdate, { merge: true });
-      });
+      await castPollVote(pollId, choiceId);
     } catch (error) {
       console.error('Vote transaction failed', error);
       Alert.alert('Unable to cast vote', error.message || 'Please try again later.');
@@ -179,24 +124,6 @@ export default function PollDetailScreen({ route }) {
       setSendingComment(false);
     }
   };
-
-  const latestTrend = useMemo(() => {
-    if (!trendSnapshots.length) {
-      return [];
-    }
-
-    return trendSnapshots.map((snapshot) => {
-      const counts = snapshot.counts || {};
-      return {
-        id: snapshot.id,
-        label: formatTimeLabel(snapshot.timestamp),
-        counts,
-        totalVotes: snapshot.totalVotes || 0
-      };
-    });
-  }, [trendSnapshots]);
-
-  const maxTrendValue = Math.max(1, ...latestTrend.flatMap((item) => Object.values(item.counts || {})));
 
   if (loading) {
     return (
@@ -248,31 +175,9 @@ export default function PollDetailScreen({ route }) {
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Trend history</Text>
-        {latestTrend.length === 0 ? (
-          <Text style={[styles.emptySubtitle, { color: theme.subtext }]}>Trend history begins as people vote.</Text>
-        ) : (
-          latestTrend.map((snapshot) => (
-            <View key={snapshot.id} style={[styles.trendRow, { backgroundColor: theme.background, borderColor: theme.border }]}> 
-              <Text style={[styles.trendLabel, { color: theme.text }]}>{snapshot.label}</Text>
-              <View style={styles.trendBars}>
-                {voteOptions.map((choice) => {
-                  const value = snapshot.counts?.[choice.id] || 0;
-                  const width = (value / maxTrendValue) * 220;
-                  return (
-                    <View key={choice.id} style={styles.trendBarRow}>
-                      <Text style={[styles.trendChoice, { color: theme.subtext }]}>{choice.label}</Text>
-                      <View style={[styles.trendBar, { backgroundColor: theme.border }]}> 
-                        <View style={[styles.trendFill, { width, backgroundColor: theme.accent }]} />
-                      </View>
-                      <Text style={[styles.trendValue, { color: theme.subtext }]}>{value}</Text>
-                    </View>
-                  );
-                })}
-              </View>
-            </View>
-          ))
-        )}
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>Vote share over time</Text>
+        <Text style={[styles.sectionHint, { color: theme.subtext }]}>How each option's share has shifted as people voted.</Text>
+        <TrendChart poll={poll} options={voteOptions} variant="full" />
       </View>
 
       <View style={[styles.section, { backgroundColor: theme.surface, borderColor: theme.border }]}> 
@@ -374,6 +279,12 @@ const styles = StyleSheet.create({
     marginBottom: 18,
     letterSpacing: 0.3
   },
+  sectionHint: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: -10,
+    marginBottom: 16
+  },
   choiceButton: {
     borderWidth: 1,
     borderRadius: 16,
@@ -411,44 +322,97 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     letterSpacing: 0.3
   },
-  trendRow: {
-    borderRadius: 16,
-    padding: 16,
+  chartScrollContent: {
+    paddingBottom: 8
+  },
+  rangeRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 12
+  },
+  rangeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 14,
+    borderRadius: 18,
+    borderWidth: 1
+  },
+  rangeButtonText: {
+    fontSize: 12,
+    fontWeight: '700'
+  },
+  chartBox: {
     borderWidth: 1,
-    marginBottom: 14,
-    shadowColor: '#000',
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 2 },
-    elevation: 2
-  },
-  trendLabel: {
-    fontSize: 13,
-    fontWeight: '800',
-    marginBottom: 12,
-    letterSpacing: 0.3
-  },
-  trendBars: {
-    marginBottom: 4
-  },
-  trendBarRow: {
-    marginBottom: 14
-  },
-  trendChoice: {
-    fontSize: 14,
-    marginBottom: 6,
-    fontWeight: '600'
-  },
-  trendBar: {
-    borderRadius: 10,
+    borderRadius: 14,
     overflow: 'hidden',
-    height: 12,
-    marginBottom: 6
+    position: 'relative',
+    marginBottom: 12
   },
-  trendFill: {
-    height: '100%'
+  yGuideRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    height: 2,
+    flexDirection: 'row',
+    alignItems: 'center'
   },
-  trendValue: {
+  yGuideLabel: {
+    width: 42,
+    fontSize: 10,
+    fontWeight: '700',
+    textAlign: 'center'
+  },
+  yGuideLine: {
+    flex: 1,
+    height: 1,
+    opacity: 0.7
+  },
+  chartLineSegment: {
+    position: 'absolute',
+    height: 2.5,
+    borderRadius: 2,
+    transformOrigin: '0 50%'
+  },
+  chartPointDot: {
+    position: 'absolute',
+    width: 6,
+    height: 6,
+    borderRadius: 4,
+    borderWidth: 1
+  },
+  xLabelsRow: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: 20
+  },
+  xLabel: {
+    position: 'absolute',
+    bottom: 2,
+    width: 52,
+    textAlign: 'center',
+    fontSize: 11,
+    fontWeight: '700'
+  },
+  legendWrap: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 10
+  },
+  legendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    marginBottom: 6,
+    marginRight: 12
+  },
+  legendSwatch: {
+    width: 10,
+    height: 10,
+    borderRadius: 6
+  },
+  legendText: {
     fontSize: 12,
     fontWeight: '700'
   },

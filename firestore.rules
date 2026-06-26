@@ -1,0 +1,204 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isUser(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // True when the caller signed in with (or linked) a verified phone number.
+    // Voting is restricted to phone-verified accounts so extra anonymous or
+    // Google accounts cannot be used to cast additional votes.
+    function isPhoneVerified() {
+      return request.auth != null && request.auth.token.phone_number != null;
+    }
+
+    // ----- Polls -----
+    match /polls/{pollId} {
+      allow read: if true;
+      // Anyone signed in (including anonymous guests) may create a poll.
+      allow create: if signedIn();
+      // Author may edit/delete their poll; any signed-in user may update it
+      // (needed so vote transactions can adjust choices/totalVotes).
+      allow update: if signedIn();
+      allow delete: if signedIn() && resource.data.authorId == request.auth.uid;
+
+      // One vote document per user (doc id == uid). Voting requires a verified
+      // phone number — one verified number = one voter.
+      match /votes/{voterId} {
+        allow read: if true;
+        allow create, update, delete: if isUser(voterId) && isPhoneVerified();
+      }
+
+      // Comments + replies. Author owns their comment; likes are stored in
+      // likedBy, so any signed-in user may update that array.
+      match /comments/{commentId} {
+        allow read: if true;
+        allow create: if signedIn() && request.resource.data.userId == request.auth.uid;
+        allow update: if signedIn();
+        allow delete: if signedIn() && resource.data.userId == request.auth.uid;
+      }
+
+      // Hourly trend buckets.
+      match /trendSnapshots/{bucketId} {
+        allow read: if true;
+        allow create, update: if signedIn();
+      }
+    }
+
+    // ----- Users / social graph -----
+    match /users/{uid} {
+      allow read: if true;
+      // A user owns their profile, but cannot grant themselves the verified
+      // badge: the `verified`/`verifiedType` fields must be left unchanged
+      // (an admin sets them out-of-band via the console / Admin SDK).
+      allow create: if isUser(uid)
+        && request.resource.data.get('verified', false) == false;
+      allow update: if isUser(uid)
+        && request.resource.data.get('verified', false) == resource.data.get('verified', false)
+        && request.resource.data.get('verifiedType', '') == resource.data.get('verifiedType', '');
+      allow delete: if false;
+
+      // Who this user follows.
+      match /following/{targetId} {
+        allow read: if true;
+        allow create, delete: if isUser(uid);
+      }
+
+      // Followers of this user (written by the follower).
+      match /followers/{followerId} {
+        allow read: if true;
+        allow create, delete: if isUser(followerId);
+      }
+
+      // Private activity log (votes/comments/likes by this user).
+      match /activity/{activityId} {
+        allow read: if isUser(uid);
+        allow create: if isUser(uid);
+        allow delete: if isUser(uid);
+      }
+    }
+
+    // ----- Global activity feed (powers daily "top creators") -----
+    match /activityFeed/{entryId} {
+      allow read: if true;
+      allow create: if signedIn() && request.resource.data.actorId == request.auth.uid;
+      allow update, delete: if false;
+    }
+
+    // ----- Account verification requests (doc id == uid) -----
+    // A user submits/updates their own request; an admin reviews it out-of-band
+    // (via console / Admin SDK) and flips `verified` on the user doc.
+    match /verificationRequests/{uid} {
+      allow read: if isUser(uid);
+      allow create, update: if isUser(uid) && request.resource.data.uid == request.auth.uid;
+      allow delete: if false;
+    }
+
+    // ----- Groups -----
+    function groupMemberData(groupId, uid) {
+      return get(/databases/$(database)/documents/groups/$(groupId)/members/$(uid)).data;
+    }
+
+    function groupMemberExists(groupId, uid) {
+      return exists(/databases/$(database)/documents/groups/$(groupId)/members/$(uid));
+    }
+
+    function myGroupRole(groupId) {
+      return groupMemberExists(groupId, request.auth.uid)
+        ? groupMemberData(groupId, request.auth.uid).role
+        : 'none';
+    }
+
+    function roleRank(role) {
+      return role == 'owner' ? 4
+        : role == 'coOwner' ? 3
+        : role == 'admin' ? 2
+        : role == 'member' ? 1
+        : 0;
+    }
+
+    function isGroupManager(groupId) {
+      return signedIn() && roleRank(myGroupRole(groupId)) >= 2;
+    }
+
+    match /groups/{groupId} {
+      allow read: if true;
+      // Creator becomes the owner (also writes their own members doc).
+      allow create: if signedIn() && request.resource.data.ownerId == request.auth.uid;
+      // Owner may edit/delete; signed-in members may update counters (join/leave).
+      allow update: if signedIn();
+      allow delete: if signedIn() && resource.data.ownerId == request.auth.uid;
+
+      // Membership documents (doc id == uid).
+      match /members/{memberId} {
+        allow read: if true;
+        // Users join themselves as plain members (or owner at creation);
+        // managers may write any member doc (promote/demote/block).
+        allow create: if signedIn()
+          && ((memberId == request.auth.uid
+               && (request.resource.data.role == 'member' || request.resource.data.role == 'owner'))
+              || isGroupManager(groupId));
+        // Managers may change any field. A user may update their own member doc
+        // (e.g. to request comment access) but cannot grant themselves
+        // commenting rights or change their own role.
+        allow update: if signedIn()
+          && (isGroupManager(groupId)
+              || (memberId == request.auth.uid
+                  && request.resource.data.role == resource.data.role
+                  && request.resource.data.canComment == resource.data.canComment));
+        // A user can leave; managers can remove others.
+        allow delete: if signedIn()
+          && (memberId == request.auth.uid || isGroupManager(groupId));
+      }
+
+      // Group chat. Anyone may read; only members who have been granted comment
+      // access (or managers) may post. Authors/managers may remove messages.
+      match /chat/{messageId} {
+        allow read: if true;
+        allow create: if signedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && groupMemberExists(groupId, request.auth.uid)
+          && (isGroupManager(groupId)
+              || groupMemberData(groupId, request.auth.uid).canComment == true);
+        allow update: if false;
+        allow delete: if isGroupManager(groupId)
+          || (signedIn() && resource.data.authorId == request.auth.uid);
+      }
+
+      // Group posts. Members create (pending); managers approve/delete;
+      // authors may delete their own posts.
+      match /posts/{postId} {
+        allow read: if true;
+        allow create: if signedIn()
+          && request.resource.data.authorId == request.auth.uid
+          && groupMemberExists(groupId, request.auth.uid);
+        allow update: if isGroupManager(groupId);
+        allow delete: if isGroupManager(groupId)
+          || (signedIn() && resource.data.authorId == request.auth.uid);
+      }
+    }
+
+    // ----- 1:1 direct messages -----
+    match /chats/{chatId} {
+      allow read: if signedIn() && request.auth.uid in resource.data.members;
+      allow create: if signedIn() && request.auth.uid in request.resource.data.members;
+      allow update: if signedIn() && request.auth.uid in resource.data.members;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if signedIn()
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow create: if signedIn()
+          && request.resource.data.senderId == request.auth.uid
+          && request.auth.uid in get(/databases/$(database)/documents/chats/$(chatId)).data.members;
+        allow update, delete: if false;
+      }
+    }
+  }
+}

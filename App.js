@@ -2,6 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, View, StyleSheet } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
+import AppDrawer from './src/components/AppDrawer';
+import { navigationRef } from './src/navigation/navigationRef';
+import { DrawerProvider } from './src/navigation/DrawerContext';
 import { auth } from './src/firebase/firebaseApp';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
@@ -9,8 +12,11 @@ import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
 function MainNavigator() {
   const { navTheme } = useTheme();
   return (
-    <NavigationContainer theme={navTheme}>
-      <AppNavigator />
+    <NavigationContainer ref={navigationRef} theme={navTheme}>
+      <DrawerProvider>
+        <AppNavigator />
+        <AppDrawer />
+      </DrawerProvider>
     </NavigationContainer>
   );
 }

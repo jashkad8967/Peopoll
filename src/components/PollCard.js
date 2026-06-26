@@ -1,65 +1,137 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
+import TrendChart from './TrendChart';
+import QuickVote from './QuickVote';
+import { subscribeTrendSnapshots } from '../utils/pollVoting';
 
 export default function PollCard({ poll, onPress }) {
   const { theme } = useTheme();
+  const totalVotes = poll.totalVotes || 0;
+  const options = poll.choices || [];
+  const [snapshots, setSnapshots] = useState([]);
+
+  useEffect(() => subscribeTrendSnapshots(poll.id, setSnapshots), [poll.id]);
+
   return (
-    <TouchableOpacity style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]} onPress={onPress}>
-      <View style={styles.header}>
+    <View
+      style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}
+    >
+      <TouchableOpacity activeOpacity={0.9} onPress={onPress}>
+        <View style={styles.topRow}>
+          <View style={[styles.categoryPill, { backgroundColor: theme.accentSoft }]}>
+            <Text style={[styles.category, { color: theme.accent }]} numberOfLines={1}>{poll.category || 'General'}</Text>
+          </View>
+          <Text style={[styles.metaBadge, { color: theme.subtext }]}>{totalVotes.toLocaleString()} votes</Text>
+        </View>
+
         <Text style={[styles.title, { color: theme.text }]} numberOfLines={2}>{poll.title}</Text>
-        <Text style={[styles.category, { color: theme.accent }]}>{poll.category || 'General'}</Text>
-      </View>
-      <Text style={[styles.description, { color: theme.subtext }]} numberOfLines={3}>{poll.description || 'Vote and see how public opinion shifts over time.'}</Text>
-      <View style={styles.metaRow}>
-        <Text style={[styles.metaText, { color: theme.subtext }]}>{poll.totalVotes || 0} votes</Text>
-        <Text style={[styles.metaText, { color: theme.subtext }]}>{poll.choices?.length || 0} options</Text>
-      </View>
-    </TouchableOpacity>
+        {poll.description ? (
+          <Text style={[styles.description, { color: theme.subtext }]} numberOfLines={2}>{poll.description}</Text>
+        ) : null}
+
+        <View style={[styles.chartShell, { borderColor: theme.border }]}>
+          {options.length ? (
+            <TrendChart poll={poll} options={options} snapshots={snapshots} variant="compact" />
+          ) : (
+            <Text style={[styles.graphEmpty, { color: theme.subtext }]}>Add options to see vote trends.</Text>
+          )}
+        </View>
+      </TouchableOpacity>
+
+      {options.length ? (
+        <View style={styles.quickVoteShell}>
+          <Text style={[styles.quickVoteLabel, { color: theme.subtext }]}>Quick vote</Text>
+          <QuickVote poll={poll} compact />
+        </View>
+      ) : null}
+
+      <TouchableOpacity activeOpacity={0.7} onPress={onPress} style={[styles.metaRow, { borderTopColor: theme.border }]}>
+        <Text style={[styles.metaText, { color: theme.subtext }]}>{options.length} options</Text>
+        <Text style={[styles.metaLink, { color: theme.accent }]}>View details →</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   card: {
-    borderRadius: 20,
-    padding: 20,
-    marginBottom: 16,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 14,
     borderWidth: 1,
-    shadowColor: '#000',
-    shadowOpacity: 0.12,
-    shadowRadius: 24,
-    shadowOffset: { width: 0, height: 12 },
-    elevation: 8
+    shadowOpacity: 0.04,
+    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
-  header: {
+  topRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 12
+    alignItems: 'center',
+    marginBottom: 12,
+    gap: 10
   },
-  title: {
-    fontSize: 19,
-    fontWeight: '800',
-    flex: 1,
-    marginRight: 12,
-    lineHeight: 26
+  categoryPill: {
+    borderRadius: 999,
+    paddingHorizontal: 11,
+    paddingVertical: 5,
+    maxWidth: '65%'
   },
   category: {
-    fontWeight: '700',
+    fontWeight: '600',
     fontSize: 12,
-    marginTop: 4
+    letterSpacing: 0.2
+  },
+  metaBadge: {
+    fontSize: 12,
+    fontWeight: '600'
+  },
+  title: {
+    fontSize: 17,
+    fontWeight: '700',
+    marginBottom: 6,
+    lineHeight: 23
   },
   description: {
-    fontSize: 15,
-    marginBottom: 16,
-    lineHeight: 24
+    fontSize: 14,
+    marginBottom: 14,
+    lineHeight: 20
+  },
+  chartShell: {
+    borderRadius: 12,
+    borderWidth: 1,
+    padding: 12,
+    marginBottom: 12
+  },
+  graphEmpty: {
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  quickVoteShell: {
+    marginBottom: 12
+  },
+  quickVoteLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    letterSpacing: 0.3,
+    textTransform: 'uppercase',
+    marginBottom: 8
   },
   metaRow: {
     flexDirection: 'row',
-    justifyContent: 'space-between'
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    borderTopWidth: 1,
+    paddingTop: 12
   },
   metaText: {
     fontSize: 13,
     fontWeight: '500'
+  },
+  metaLink: {
+    fontSize: 13,
+    fontWeight: '700'
   }
 });
+
