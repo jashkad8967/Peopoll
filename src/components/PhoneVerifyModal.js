@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import { Modal, View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
-import { startPhoneVerification, confirmPhoneCode } from '../utils/account';
+import { startPhoneVerification, confirmPhoneCode, startPhoneChange, confirmPhoneChange } from '../utils/account';
 
 // Two-step phone verification dialog: enter number → enter the SMS code.
 // On success it calls onVerified so the caller can proceed (e.g. cast a vote).
-export default function PhoneVerifyModal({ visible, onClose, onVerified, reason }) {
+// When `mode` is 'change' it re-verifies and swaps the account's number instead
+// of linking a first number.
+export default function PhoneVerifyModal({ visible, onClose, onVerified, reason, mode = 'verify' }) {
   const { theme } = useTheme();
   const [step, setStep] = useState('phone');
   const [phone, setPhone] = useState('');
@@ -29,7 +31,9 @@ export default function PhoneVerifyModal({ visible, onClose, onVerified, reason 
     setBusy(true);
     setError('');
     try {
-      const handle = await startPhoneVerification(phone);
+      const handle = mode === 'change'
+        ? await startPhoneChange(phone)
+        : await startPhoneVerification(phone);
       setConfirmation(handle);
       setStep('code');
     } catch (err) {
@@ -43,7 +47,9 @@ export default function PhoneVerifyModal({ visible, onClose, onVerified, reason 
     setBusy(true);
     setError('');
     try {
-      const user = await confirmPhoneCode(confirmation, code);
+      const user = mode === 'change'
+        ? await confirmPhoneChange(confirmation, code)
+        : await confirmPhoneCode(confirmation, code);
       onVerified?.(user);
       onClose?.();
     } catch (err) {

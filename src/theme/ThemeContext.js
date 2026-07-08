@@ -1,6 +1,24 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { Appearance } from 'react-native';
 import { DefaultTheme as NavigationDefaultTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
+
+const THEME_STORAGE_KEY = 'peopoll:themeName';
+
+// Reads any previously chosen theme from web localStorage so the selection
+// survives page reloads. Falls back to the OS colour scheme on first visit.
+function getInitialThemeName() {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const stored = window.localStorage.getItem(THEME_STORAGE_KEY);
+      if (stored === 'light' || stored === 'dark') {
+        return stored;
+      }
+    }
+  } catch {
+    // Ignore storage access errors (private mode, SSR, etc.).
+  }
+  return Appearance.getColorScheme() === 'dark' ? 'dark' : 'light';
+}
 
 const baseThemes = {
   light: {
@@ -68,8 +86,18 @@ const baseThemes = {
 const ThemeContext = createContext({});
 
 export function ThemeProvider({ children }) {
-  const systemPreference = Appearance.getColorScheme();
-  const [themeName, setThemeName] = useState(systemPreference === 'dark' ? 'dark' : 'light');
+  const [themeName, setThemeName] = useState(getInitialThemeName);
+
+  // Persist the chosen theme so it is restored on the next load.
+  useEffect(() => {
+    try {
+      if (typeof window !== 'undefined' && window.localStorage) {
+        window.localStorage.setItem(THEME_STORAGE_KEY, themeName);
+      }
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [themeName]);
 
   const value = useMemo(() => {
     const theme = baseThemes[themeName];

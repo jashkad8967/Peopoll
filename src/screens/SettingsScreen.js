@@ -23,7 +23,7 @@ import VerifiedBadge from '../components/VerifiedBadge';
 const DEFAULT_PREFS = { notifications: true, trendingDigest: true, compactCards: false, autoplayTrends: true };
 
 export default function SettingsScreen({ navigation }) {
-  const { theme, themeName, toggleTheme } = useTheme();
+  const { theme, themeName, toggleTheme, setThemeName } = useTheme();
   const [user, setUser] = useState(null);
   const [authBusy, setAuthBusy] = useState(false);
   const [profile, setProfile] = useState(null);
@@ -39,6 +39,7 @@ export default function SettingsScreen({ navigation }) {
 
   // Phone verification.
   const [showVerify, setShowVerify] = useState(false);
+  const [showChangePhone, setShowChangePhone] = useState(false);
   const [phoneVerified, setPhoneVerified] = useState(isPhoneVerified(auth.currentUser));
 
   // Verification (verified badge) request.
@@ -58,6 +59,20 @@ export default function SettingsScreen({ navigation }) {
       return next;
     });
   };
+
+  // Settings is organised as a hub: a list of sections, each opening as its own
+  // page. `activeSection` is null on the hub and the section id when one is open.
+  const [activeSection, setActiveSection] = useState(null);
+  const SECTIONS = [
+    { id: 'profile', title: 'Profile', subtitle: 'Name, bio, and your polls' },
+    { id: 'location', title: 'Location', subtitle: 'Nationality and region' },
+    { id: 'voting', title: 'Voting verification', subtitle: 'Verify or change your phone number' },
+    { id: 'verified', title: 'Verified account', subtitle: 'Request a verified badge' },
+    { id: 'preferences', title: 'Preferences', subtitle: 'Theme, notifications, and display' },
+    { id: 'account', title: 'Account', subtitle: 'Sign in or out' },
+    { id: 'support', title: 'Help & support', subtitle: 'FAQs, policies, and contact' },
+    { id: 'about', title: 'About', subtitle: 'App info' }
+  ];
 
   useEffect(() => onAuthStateChanged(auth, (u) => {
     setUser(u);
@@ -84,6 +99,11 @@ export default function SettingsScreen({ navigation }) {
       setCountry(p?.country || '');
       setRegion(p?.region || '');
       if (p?.verificationType) setVerifyType(p.verificationType);
+      // Apply the user's saved theme so it follows them across devices.
+      const savedTheme = p?.preferences?.theme;
+      if (savedTheme === 'light' || savedTheme === 'dark') {
+        setThemeName(savedTheme);
+      }
     });
   }, [uid]);
 
@@ -94,6 +114,16 @@ export default function SettingsScreen({ navigation }) {
     }
     return subscribeVerificationRequest(uid, setVerifyRequest);
   }, [uid]);
+
+  // Toggles the theme and persists the choice onto the user's profile so it
+  // syncs across devices (ThemeContext also stores it locally for reloads).
+  const handleToggleTheme = () => {
+    const nextTheme = themeName === 'light' ? 'dark' : 'light';
+    toggleTheme();
+    updateUserPreferences({ ...prefs, theme: nextTheme }).catch((error) =>
+      console.error('Failed to save theme preference', error)
+    );
+  };
 
   const showAuthError = (error) => {
     const code = error?.code || '';
@@ -191,6 +221,8 @@ export default function SettingsScreen({ navigation }) {
 
   const name = profile?.displayName || displayNameFor(user);
 
+  const activeMeta = SECTIONS.find((s) => s.id === activeSection);
+
   return (
     <ScrollView
       style={{ backgroundColor: theme.background }}
@@ -198,10 +230,37 @@ export default function SettingsScreen({ navigation }) {
       keyboardShouldPersistTaps="handled"
       showsVerticalScrollIndicator={false}
     >
-      <Text style={[styles.title, { color: theme.text }]}>Settings</Text>
-      <Text style={[styles.description, { color: theme.subtext }]}>Manage your profile, review everything you've interacted with, and tune the app to your taste.</Text>
+      {activeSection ? (
+        <TouchableOpacity style={styles.backRow} onPress={() => setActiveSection(null)}>
+          <Text style={[styles.backText, { color: theme.accent }]}>← Settings</Text>
+        </TouchableOpacity>
+      ) : null}
+
+      <Text style={[styles.title, { color: theme.text }]}>{activeMeta ? activeMeta.title : 'Settings'}</Text>
+      <Text style={[styles.description, { color: theme.subtext }]}>
+        {activeMeta ? activeMeta.subtitle : "Manage your profile, review everything you've interacted with, and tune the app to your taste."}
+      </Text>
+
+      {!activeSection ? (
+        <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border, padding: 6 }]}>
+          {SECTIONS.map((section, index) => (
+            <TouchableOpacity
+              key={section.id}
+              style={[styles.hubRow, index > 0 && { borderTopWidth: 1, borderTopColor: theme.border }]}
+              onPress={() => setActiveSection(section.id)}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={[styles.hubRowTitle, { color: theme.text }]}>{section.title}</Text>
+                <Text style={[styles.hubRowSubtitle, { color: theme.subtext }]}>{section.subtitle}</Text>
+              </View>
+              <Text style={[styles.hubChevron, { color: theme.subtext }]}>›</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      ) : null}
 
       {/* Profile */}
+      {activeSection === 'profile' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Profile</Text>
         <View style={styles.profileRow}>
@@ -232,8 +291,10 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.primaryButtonText}>{bioSaving ? 'Saving…' : 'Save bio'}</Text>
         </TouchableOpacity>
       </View>
+      ) : null}
 
       {/* Location */}
+      {activeSection === 'location' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Location</Text>
         <Text style={[styles.optionDescription, { color: theme.subtext, marginBottom: 12 }]}>
@@ -293,8 +354,10 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.primaryButtonText}>{locationSaving ? 'Saving…' : 'Save location'}</Text>
         </TouchableOpacity>
       </View>
+      ) : null}
 
       {/* Phone verification (voting security) */}
+      {activeSection === 'voting' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Voting verification</Text>
         <Text style={[styles.optionDescription, { color: theme.subtext, marginBottom: 14 }]}>
@@ -302,17 +365,26 @@ export default function SettingsScreen({ navigation }) {
           voter, which stops a single person voting many times with extra accounts.
         </Text>
         {phoneVerified ? (
-          <View style={[styles.statusPill, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
-            <Text style={[styles.statusText, { color: theme.accent }]}>✓ Phone verified — you can vote.</Text>
-          </View>
+          <>
+            <View style={[styles.statusPill, { backgroundColor: theme.surfaceMuted, borderColor: theme.border }]}>
+              <Text style={[styles.statusText, { color: theme.accent }]}>
+                {'\u2713 Phone verified'}{user?.phoneNumber ? ` (${user.phoneNumber})` : ''} — you can vote.
+              </Text>
+            </View>
+            <TouchableOpacity style={[styles.secondaryButton, { borderColor: theme.border, marginTop: 12 }]} onPress={() => setShowChangePhone(true)}>
+              <Text style={[styles.secondaryButtonText, { color: theme.text }]}>Change phone number</Text>
+            </TouchableOpacity>
+          </>
         ) : (
           <TouchableOpacity style={[styles.primaryButton, { backgroundColor: theme.accent }]} onPress={() => setShowVerify(true)}>
             <Text style={styles.primaryButtonText}>Verify my phone</Text>
           </TouchableOpacity>
         )}
       </View>
+      ) : null}
 
       {/* Verified account request */}
+      {activeSection === 'verified' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <View style={styles.verifyHeader}>
           <Text style={[styles.cardTitle, { color: theme.text, marginBottom: 0 }]}>Verified account</Text>
@@ -402,8 +474,10 @@ export default function SettingsScreen({ navigation }) {
           </>
         )}
       </View>
+      ) : null}
 
       {/* Preferences */}
+      {activeSection === 'preferences' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Preferences</Text>
 
@@ -412,7 +486,7 @@ export default function SettingsScreen({ navigation }) {
             <Text style={[styles.optionLabel, { color: theme.text }]}>Dark mode</Text>
             <Text style={[styles.optionDescription, { color: theme.subtext }]}>Switch the interface to a modern dark palette.</Text>
           </View>
-          <Switch trackColor={{ false: '#9ca3af', true: theme.accent }} thumbColor="#ffffff" value={themeName === 'dark'} onValueChange={toggleTheme} />
+          <Switch trackColor={{ false: '#9ca3af', true: theme.accent }} thumbColor="#ffffff" value={themeName === 'dark'} onValueChange={handleToggleTheme} />
         </View>
 
         <View style={[styles.optionRow, styles.optionDivider, { borderTopColor: theme.border }]}>
@@ -447,8 +521,10 @@ export default function SettingsScreen({ navigation }) {
           <Switch trackColor={{ false: '#9ca3af', true: theme.accent }} thumbColor="#ffffff" value={prefs.autoplayTrends} onValueChange={() => setPref('autoplayTrends')} />
         </View>
       </View>
+      ) : null}
 
       {/* Account */}
+      {activeSection === 'account' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Account</Text>
         <Text style={[styles.accountText, { color: theme.text }]}>{user?.displayName || (user?.isAnonymous ? 'Guest' : 'Guest')}</Text>
@@ -457,7 +533,10 @@ export default function SettingsScreen({ navigation }) {
           <Text style={styles.primaryButtonText}>{authBusy ? 'Please wait...' : user ? 'Sign out' : 'Sign in with Google'}</Text>
         </TouchableOpacity>
       </View>
+      ) : null}
 
+      {/* Help & support */}
+      {activeSection === 'support' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>Help & support</Text>
         <Text style={[styles.optionDescription, { color: theme.subtext, marginBottom: 14 }]}>Browse FAQs and policies, or send us a message directly below.</Text>
@@ -476,18 +555,30 @@ export default function SettingsScreen({ navigation }) {
           <ContactForm embedded />
         </View>
       </View>
+      ) : null}
 
+      {/* About */}
+      {activeSection === 'about' ? (
       <View style={[styles.card, { backgroundColor: theme.surface, borderColor: theme.border }]}>
         <Text style={[styles.cardTitle, { color: theme.text }]}>About</Text>
         <Text style={[styles.aboutText, { color: theme.subtext }]}>Peopoll helps communities discover popular opinion, compare trends, and connect with people through polls and conversation.</Text>
         <Text style={[styles.metaText, { color: theme.subtext }]}>App version 1.1.0</Text>
       </View>
+      ) : null}
 
       <PhoneVerifyModal
         visible={showVerify}
         onClose={() => setShowVerify(false)}
         onVerified={() => setPhoneVerified(true)}
         reason="Verify your phone to enable voting. One verified number = one voter."
+      />
+
+      <PhoneVerifyModal
+        visible={showChangePhone}
+        mode="change"
+        onClose={() => setShowChangePhone(false)}
+        onVerified={() => setPhoneVerified(true)}
+        reason="Enter a new phone number to verify. This replaces the number linked to your account."
       />
     </ScrollView>
   );
@@ -499,6 +590,34 @@ const styles = StyleSheet.create({
     width: '100%',
     maxWidth: 720,
     alignSelf: 'center'
+  },
+  backRow: {
+    paddingVertical: 6,
+    marginBottom: 4
+  },
+  backText: {
+    fontSize: 15,
+    fontWeight: '700'
+  },
+  hubRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 16,
+    paddingHorizontal: 12
+  },
+  hubRowTitle: {
+    fontSize: 16,
+    fontWeight: '800',
+    marginBottom: 2
+  },
+  hubRowSubtitle: {
+    fontSize: 13,
+    fontWeight: '500'
+  },
+  hubChevron: {
+    fontSize: 24,
+    fontWeight: '700',
+    marginLeft: 10
   },
   title: {
     fontSize: 32,

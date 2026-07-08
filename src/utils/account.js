@@ -1,4 +1,4 @@
-import { signInAnonymously, RecaptchaVerifier, linkWithPhoneNumber, signInWithPhoneNumber } from 'firebase/auth';
+import { signInAnonymously, RecaptchaVerifier, linkWithPhoneNumber, signInWithPhoneNumber, PhoneAuthProvider, updatePhoneNumber } from 'firebase/auth';
 import { Platform } from 'react-native';
 import { auth } from '../firebase/firebaseApp';
 
@@ -141,6 +141,58 @@ export async function confirmPhoneCode(confirmation, code) {
   }
   const result = await confirmation.confirm(clean);
   resetRecaptcha();
+  // Refresh the user and force a new ID token so `phoneNumber` and the
+  // `phone_number` claim (used by Firestore rules) are immediately available.
+  // Without this the account still looks unverified, so voting re-prompts and
+  // the write is rejected by the rules until the next natural token refresh.
+  try {
+    await result.user.reload();
+    await result.user.getIdToken(true);
+  } catch {
+    // Non-fatal: auth state listeners will catch up shortly.
+  }
   return result.user;
+}
+
+// Starts re-verification for a NEW number on an already-verified account
+// (Settings → change number). Returns a verificationId for confirmPhoneChange.
+export async function startPhoneChange(phoneNumber) {
+  const number = normalizePhone(phoneNumber);
+  if (!/^\+\d{8,15}$/.test(number)) {
+    throw new Error('Enter a valid phone number including country code, e.g. +14155552671.');
+  }
+  await ensureSignedIn();
+  const verifier = getRecaptchaVerifier();
+  try {
+    const provider = new PhoneAuthProvider(auth);
+    return await provider.verifyPhoneNumber(number, verifier);
+  } catch (error) {
+    resetRecaptcha();
+    throw error;
+  }
+}
+
+// Confirms the SMS code and swaps the account's phone number to the new one.
+// updatePhoneNumber replaces the existing phone credential in place, so the
+// account keeps its identity (and email) while the verified number changes.
+export async function confirmPhoneChange(verificationId, code) {
+  const clean = String(code || '').replace(/[^\d]/g, '');
+  if (clean.length < 6) {
+    throw new Error('Enter the 6-digit code from the text message.');
+  }
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error('You need to be signed in to change your number.');
+  }
+  const credential = PhoneAuthProvider.credential(verificationId, clean);
+  await updatePhoneNumber(user, credential);
+  resetRecaptcha();
+  try {
+    await user.reload();
+    await user.getIdToken(true);
+  } catch {
+    // Non-fatal: auth state listeners will catch up shortly.
+  }
+  return user;
 }
 

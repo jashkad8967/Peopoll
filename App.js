@@ -8,6 +8,7 @@ import { DrawerProvider } from './src/navigation/DrawerContext';
 import { auth } from './src/firebase/firebaseApp';
 import { onAuthStateChanged } from 'firebase/auth';
 import { ThemeProvider, useTheme } from './src/theme/ThemeContext';
+import ErrorBoundary from './src/components/ErrorBoundary';
 
 function MainNavigator() {
   const { navTheme } = useTheme();
@@ -41,9 +42,11 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <MainNavigator />
-    </ThemeProvider>
+    <ErrorBoundary>
+      <ThemeProvider>
+        <MainNavigator />
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }
 
