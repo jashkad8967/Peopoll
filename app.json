@@ -31,7 +31,7 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.yourcompany.peopoll"
+      "package": "com.jkapplications.peopoll"
     },
     "updates": {
       "enabled": true,
