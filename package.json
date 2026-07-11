@@ -27,7 +27,8 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.22.20"
+    "@babel/core": "^7.22.20",
+    "expo-build-properties": "^0.6.0"
   },
   "expo": {
     "name": "Peopoll",
