@@ -12,17 +12,7 @@
     ],
     "plugins": [
       "expo-font",
-      "expo-status-bar",
-      [
-        "expo-build-properties",
-        {
-          "android": {
-            "enableProguardInReleaseBuilds": true,
-            "enableShrinkResourcesInReleaseBuilds": true
-          }
-        }
-      ],
-      "./plugins/withR8GradleProperties"
+      "expo-status-bar"
     ],
     "ios": {
       "bundleIdentifier": "com.jkapplications.peopoll",

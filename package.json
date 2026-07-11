@@ -16,6 +16,7 @@
     "@react-navigation/native": "^6.1.15",
     "@react-navigation/native-stack": "^6.9.18",
     "expo": "~56.0.15",
+    "expo-build-properties": "~56.0.22",
     "expo-status-bar": "~56.0.4",
     "firebase": "^10.14.1",
     "react": "19.2.3",
@@ -27,8 +28,7 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.22.20",
-    "expo-build-properties": "^0.6.0"
+    "@babel/core": "^7.22.20"
   },
   "expo": {
     "name": "Peopoll",
