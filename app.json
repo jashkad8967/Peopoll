@@ -26,6 +26,7 @@
       },
       "package": "com.jkapplications.peopoll"
     },
+    "newArchEnabled": false,
     "updates": {
       "enabled": false,
       "fallbackToCacheTimeout": 0

@@ -1,8 +1,9 @@
 import { initializeApp, getApps } from 'firebase/app';
-import { getAuth } from 'firebase/auth';
+import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import { Platform } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import firebaseConfig from './firebaseConfig';
 
 const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
@@ -37,7 +38,26 @@ if (
   }
 }
 
-export const auth = getAuth(app);
+// Auth must be initialized differently per platform. On React Native, calling
+// getAuth() before the auth component is registered throws "Component auth has
+// not been registered yet" and crashes the app on launch — native requires
+// initializeAuth() with AsyncStorage persistence so sessions survive restarts.
+// On web, getAuth() is correct.
+function getAuthInstance() {
+  if (Platform.OS === 'web') {
+    return getAuth(app);
+  }
+  try {
+    return initializeAuth(app, {
+      persistence: getReactNativePersistence(AsyncStorage)
+    });
+  } catch (error) {
+    // If auth was already initialized (e.g. fast refresh), fall back to getAuth.
+    return getAuth(app);
+  }
+}
+
+export const auth = getAuthInstance();
 export const db = getFirestore(app);
 export default app;
 
