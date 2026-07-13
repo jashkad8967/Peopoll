@@ -11,8 +11,7 @@
       "web"
     ],
     "plugins": [
-      "expo-font",
-      "expo-status-bar"
+      "expo-font"
     ],
     "ios": {
       "bundleIdentifier": "com.jkapplications.peopoll",
@@ -28,8 +27,7 @@
       "package": "com.jkapplications.peopoll"
     },
     "updates": {
-      "enabled": true,
-      "checkAutomatically": "ON_LOAD",
+      "enabled": false,
       "fallbackToCacheTimeout": 0
     },
     "extra": {
