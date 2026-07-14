@@ -5,7 +5,7 @@ import TrendChart from './TrendChart';
 import QuickVote from './QuickVote';
 import { subscribeTrendSnapshots } from '../utils/pollVoting';
 
-export default function PollCard({ poll, onPress }) {
+function PollCard({ poll, onPress }) {
   const { theme } = useTheme();
   const totalVotes = poll.totalVotes || 0;
   const options = poll.choices || [];
@@ -53,6 +53,16 @@ export default function PollCard({ poll, onPress }) {
     </View>
   );
 }
+
+// Memoized so a card only re-renders when its own poll data actually changes,
+// not every time the parent feed updates — avoids redundant renders and the
+// per-card trend listener churning in long lists.
+export default React.memo(PollCard, (prev, next) => (
+  prev.poll.id === next.poll.id &&
+  prev.poll.totalVotes === next.poll.totalVotes &&
+  prev.poll.title === next.poll.title &&
+  prev.onPress === next.onPress
+));
 
 const styles = StyleSheet.create({
   card: {
@@ -134,4 +144,3 @@ const styles = StyleSheet.create({
     fontWeight: '700'
   }
 });
-

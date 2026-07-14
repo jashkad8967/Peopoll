@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, ScrollView, useWindowDimensions } from 'react-native';
-import { collection, query, orderBy, onSnapshot } from 'firebase/firestore';
+import { collection, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
 import { auth, db } from '../firebase/firebaseApp';
 import { onAuthStateChanged } from 'firebase/auth';
 import PollCard from '../components/PollCard';
@@ -50,7 +50,9 @@ export default function HomeScreen({ navigation }) {
   const [recentFeed, setRecentFeed] = useState([]);
 
   useEffect(() => {
-    const pollsQuery = query(collection(db, 'polls'), orderBy('createdAt', 'desc'));
+    // Cap the feed so we don't download the entire polls collection on every
+    // load — fewer Firestore reads, less bandwidth, and a lighter render.
+    const pollsQuery = query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(50));
     const unsubscribe = onSnapshot(
       pollsQuery,
       (snapshot) => {
