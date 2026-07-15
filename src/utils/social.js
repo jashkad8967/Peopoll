@@ -255,10 +255,12 @@ export function subscribeMyActivity(uid, callback, max = 50) {
   );
 }
 
-// Subscribes to global activity from the last `sinceMs` window.
+// Subscribes to global activity from the last `sinceMs` window. Capped low
+// because this only feeds the "top creators" aggregation — 200 recent entries
+// is plenty and avoids downloading a huge slice of the feed on every load.
 export function subscribeRecentFeed(sinceMs, callback) {
   const cutoff = new Date(Date.now() - sinceMs);
-  const q = query(collection(db, 'activityFeed'), where('createdAt', '>=', cutoff), orderBy('createdAt', 'desc'), limitFn(500));
+  const q = query(collection(db, 'activityFeed'), where('createdAt', '>=', cutoff), orderBy('createdAt', 'desc'), limitFn(200));
   return onSnapshot(
     q,
     (snap) => callback(snap.docs.map((d) => ({ id: d.id, ...d.data() }))),
