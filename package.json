@@ -9,8 +9,16 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build": "expo build",
+    "deploy": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1",
+    "deploy:web": "expo export --platform web --output-dir dist && firebase deploy --only hosting",
+    "deploy:rules": "firebase deploy --only firestore",
+    "deploy:all": "powershell -ExecutionPolicy Bypass -File scripts/deploy.ps1 -Target all",
+    "deploy:update": "eas update --branch production --platform all --message \"OTA update\" --non-interactive",
+    "deploy:build": "eas build --platform all --profile production --non-interactive",
+    "deploy:submit": "eas submit --platform all --profile production --non-interactive",
     "seed:groups": "node scripts/seedGroups.mjs",
-    "seed:trend": "node scripts/seedTrend.mjs"
+    "seed:trend": "node scripts/seedTrend.mjs",
+    "seed:data": "node scripts/seedData.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
@@ -29,7 +37,8 @@
     "react-native-web": "^0.21.2"
   },
   "devDependencies": {
-    "@babel/core": "^7.22.20"
+    "@babel/core": "^7.22.20",
+    "firebase-admin": "^12.7.0"
   },
   "expo": {
     "name": "Peopoll",

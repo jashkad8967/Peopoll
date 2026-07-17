@@ -1,7 +1,7 @@
 import { Linking, Platform } from 'react-native';
 
-// TODO: Replace with the real support inbox once provided by the user.
-export const SUPPORT_EMAIL = '';
+// Support / business inbox the contact form routes messages to.
+export const SUPPORT_EMAIL = 'business@peopollapp.com';
 
 // Opens the user's email client with a prefilled message. This works without a
 // backend. When SUPPORT_EMAIL is set later, the form will route directly to it.

@@ -138,7 +138,7 @@ async function seed() {
     }
   }
   const ownerUid = cred.user.uid;
-  const ownerName = 'Community Seeder';
+  const ownerName = 'Jordan Mitchell';
   console.log(`Signed in as ${ownerUid}`);
 
   for (const group of GROUPS) {
