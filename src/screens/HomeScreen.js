@@ -8,7 +8,7 @@ import PollModal from '../components/PollModal';
 import { useTheme } from '../theme/ThemeContext';
 import { useDrawer } from '../navigation/DrawerContext';
 import { DAY_MS } from '../utils/trendSimulation';
-import { subscribeFriends, subscribeRecentFeed, subscribeUsers } from '../utils/social';
+import { subscribeFriends, subscribeRecentFeed } from '../utils/social';
 
 function rankPoll(poll) {
   const createdAt = poll.createdAt?.toDate ? poll.createdAt.toDate() : null;
@@ -46,7 +46,6 @@ export default function HomeScreen({ navigation }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [me, setMe] = useState(auth.currentUser?.uid || null);
   const [friends, setFriends] = useState([]);
-  const [usersMap, setUsersMap] = useState({});
   const [recentFeed, setRecentFeed] = useState([]);
 
   useEffect(() => {
@@ -68,12 +67,6 @@ export default function HomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => onAuthStateChanged(auth, (u) => setMe(u?.uid || null)), []);
-
-  useEffect(() => subscribeUsers((list) => {
-    const map = {};
-    list.forEach((u) => { map[u.id] = u; });
-    setUsersMap(map);
-  }), []);
 
   useEffect(() => subscribeRecentFeed(DAY_MS, setRecentFeed), []);
 
@@ -124,12 +117,12 @@ export default function HomeScreen({ navigation }) {
     return Object.entries(counts)
       .map(([id, count]) => {
         const sample = polls.find((p) => p.authorId === id);
-        const name = usersMap[id]?.displayName || sample?.authorName || `User ${id.slice(0, 4)}`;
+        const name = sample?.authorName || `User ${id.slice(0, 4)}`;
         return { id, count, name };
       })
       .sort((a, b) => b.count - a.count)
       .slice(0, 5);
-  }, [recentFeed, pollsById, usersMap, polls]);
+  }, [recentFeed, pollsById, polls]);
 
   const friendPolls = useMemo(() => {
     const friendSet = new Set(friends);
@@ -231,7 +224,7 @@ export default function HomeScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.background }}>
-      <ScrollView contentContainerStyle={styles.page} showsVerticalScrollIndicator={false}>
+      <ScrollView contentContainerStyle={[styles.page, { paddingHorizontal: width < 400 ? 14 : 18 }]} showsVerticalScrollIndicator={false}>
         <TouchableOpacity
           style={[styles.menuButton, { backgroundColor: theme.surface, borderColor: theme.border, shadowColor: theme.shadow }]}
           onPress={openDrawer}
@@ -461,6 +454,7 @@ const styles = StyleSheet.create({
   categoryBadgeRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    flexWrap: 'wrap',
     gap: 8,
     marginBottom: 14
   },

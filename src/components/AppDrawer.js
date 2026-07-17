@@ -6,6 +6,7 @@ import { navigate } from '../navigation/navigationRef';
 
 const INFO_ITEMS = [
   { route: 'Groups', label: 'Groups', icon: '◎' },
+  { route: 'Settings', label: 'Settings', icon: '⚙' },
   { route: 'About', label: 'About', icon: 'ℹ' },
   { route: 'Policy', label: 'Privacy policy', icon: '§' },
   { route: 'Help', label: 'Help & contact', icon: '?' }

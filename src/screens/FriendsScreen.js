@@ -14,7 +14,7 @@ import { auth } from '../firebase/firebaseApp';
 import { onAuthStateChanged } from 'firebase/auth';
 import { useTheme } from '../theme/ThemeContext';
 import { ensureSignedIn } from '../utils/account';
-import { subscribeFriends, subscribeUsers } from '../utils/social';
+import { subscribeFriends, subscribeUsersByIds } from '../utils/social';
 import { ensureChat, sendMessage, subscribeMessages, subscribeMyChats } from '../utils/chat';
 
 function avatarColor(name, palette) {
@@ -54,12 +54,6 @@ export default function FriendsScreen({ route, navigation }) {
     ensureSignedIn().catch(() => {});
     return onAuthStateChanged(auth, (u) => setUid(u?.uid || null));
   }, []);
-
-  useEffect(() => subscribeUsers((list) => {
-    const map = {};
-    list.forEach((u) => { map[u.id] = u; });
-    setUsersMap(map);
-  }), []);
 
   useEffect(() => {
     if (!uid) return undefined;
@@ -108,6 +102,17 @@ export default function FriendsScreen({ route, navigation }) {
     });
     return list;
   }, [chats, friends, uid]);
+
+  // Only fetch the profiles we actually display (contacts + the open peer),
+  // instead of downloading the whole users collection.
+  const contactIds = useMemo(() => {
+    const ids = contacts.map((c) => c.uid);
+    if (activePeer?.uid) ids.push(activePeer.uid);
+    return Array.from(new Set(ids.filter(Boolean)));
+  }, [contacts, activePeer]);
+
+  const contactIdsKey = contactIds.join(',');
+  useEffect(() => subscribeUsersByIds(contactIds, setUsersMap), [contactIdsKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const openChat = async (peerUid) => {
     setActivePeer({ uid: peerUid, name: nameFor(peerUid) });

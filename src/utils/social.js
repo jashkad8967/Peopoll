@@ -49,6 +49,33 @@ export function subscribeUsers(callback) {
   });
 }
 
+// Subscribes only to the specific user documents we actually need (e.g. the
+// people in a conversation list), instead of downloading the entire `users`
+// collection. Emits a { [uid]: profile } map and keeps it live per-document.
+// This bounds reads/bandwidth to the number of contacts, avoiding the large
+// full-collection downloads that slow first load and can time out at scale.
+export function subscribeUsersByIds(ids, callback) {
+  const unique = Array.from(new Set((ids || []).filter(Boolean)));
+  if (unique.length === 0) {
+    callback({});
+    return () => {};
+  }
+  const map = {};
+  const unsubs = unique.map((id) =>
+    onSnapshot(
+      doc(db, 'users', id),
+      (snap) => {
+        if (snap.exists()) {
+          map[id] = { id: snap.id, ...snap.data() };
+          callback({ ...map });
+        }
+      },
+      () => {}
+    )
+  );
+  return () => unsubs.forEach((fn) => fn());
+}
+
 export function subscribeUserProfile(uid, callback) {
   if (!uid) return () => {};
   return onSnapshot(doc(db, 'users', uid), (snap) => {

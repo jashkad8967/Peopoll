@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { collection, onSnapshot, query } from 'firebase/firestore';
+import { collection, limit, onSnapshot, orderBy, query } from 'firebase/firestore';
 import { db } from '../firebase/firebaseApp';
 import { navigate } from './navigationRef';
 
@@ -14,8 +14,12 @@ export function DrawerProvider({ children }) {
   const [pollCategories, setPollCategories] = useState([]);
 
   useEffect(() => {
+    // Derive categories from the most recent polls only. Downloading the entire
+    // polls collection just to list categories is slow, wastes bandwidth, and
+    // can time out once the collection grows — a bounded, ordered query keeps
+    // this cheap while still surfacing every actively used category.
     const unsub = onSnapshot(
-      query(collection(db, 'polls')),
+      query(collection(db, 'polls'), orderBy('createdAt', 'desc'), limit(300)),
       (snap) => {
         const available = new Set();
         snap.docs.forEach((doc) => {
