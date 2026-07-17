@@ -139,6 +139,14 @@ if ($doWeb) {
         # Produces the static site in ./dist, which firebase.json serves.
         npx expo export --platform web --output-dir dist
     }
+    # expo export rewrites dist/, so re-copy the standalone privacy policy page
+    # afterwards. This keeps https://<host>/privacy.html live for the app
+    # stores' required privacy-policy URL.
+    Invoke-Step 'Copying privacy policy into dist' {
+        $src = Join-Path $repoRoot 'public/privacy.html'
+        $dest = Join-Path $repoRoot 'dist/privacy.html'
+        if (Test-Path $src) { Copy-Item $src $dest -Force }
+    }
     Invoke-Step 'Deploying website to Firebase Hosting' {
         firebase deploy --only hosting
     }
