@@ -1,19 +1,18 @@
 import React, { useEffect, useRef } from 'react';
-import { Animated, Modal, Pressable, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Animated, Modal, Pressable, ScrollView, StyleSheet, Switch, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { useTheme } from '../theme/ThemeContext';
 import { useDrawer } from '../navigation/DrawerContext';
 import { navigate } from '../navigation/navigationRef';
 
 const INFO_ITEMS = [
   { route: 'Groups', label: 'Groups', icon: '◎' },
-  { route: 'Settings', label: 'Settings', icon: '⚙' },
   { route: 'About', label: 'About', icon: 'ℹ' },
   { route: 'Policy', label: 'Privacy policy', icon: '§' },
   { route: 'Help', label: 'Help & contact', icon: '?' }
 ];
 
 export default function AppDrawer() {
-  const { theme } = useTheme();
+  const { theme, isDark, toggleTheme } = useTheme();
   const { width } = useWindowDimensions();
   const { isOpen, closeDrawer, categories, selectedCategory, selectCategory } = useDrawer();
 
@@ -72,6 +71,26 @@ export default function AppDrawer() {
                   );
                 })}
               </View>
+
+              <Text style={[styles.sectionLabel, { color: theme.subtext, marginTop: 18 }]}>Settings</Text>
+              {/* Appearance is stored locally, so guests can switch themes
+                  without signing in. */}
+              <View style={styles.settingRow}>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.settingLabel, { color: theme.text }]}>Dark mode</Text>
+                  <Text style={[styles.settingHint, { color: theme.subtext }]}>Available without signing in</Text>
+                </View>
+                <Switch
+                  value={isDark}
+                  onValueChange={toggleTheme}
+                  trackColor={{ false: theme.border, true: theme.accent }}
+                  thumbColor="#ffffff"
+                />
+              </View>
+              <TouchableOpacity style={styles.navItem} onPress={() => go('Settings')}>
+                <Text style={[styles.navIcon, { color: theme.accentPurple }]}>{'\u2699'}</Text>
+                <Text style={[styles.navLabel, { color: theme.text }]}>All settings</Text>
+              </TouchableOpacity>
 
               <Text style={[styles.sectionLabel, { color: theme.subtext, marginTop: 18 }]}>More</Text>
               {INFO_ITEMS.map((item) => (
@@ -167,6 +186,23 @@ const styles = StyleSheet.create({
   navLabel: {
     fontSize: 15,
     fontWeight: '600'
+  },
+  settingRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12
+  },
+  settingLabel: {
+    fontSize: 15,
+    fontWeight: '600'
+  },
+  settingHint: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 2
   },
   categoryWrap: {
     flexDirection: 'column',

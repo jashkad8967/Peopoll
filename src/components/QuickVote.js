@@ -7,6 +7,20 @@ import { useTheme } from '../theme/ThemeContext';
 import { castPollVote, PhoneVerificationRequiredError } from '../utils/pollVoting';
 import PhoneVerifyModal from './PhoneVerifyModal';
 
+// Mirrors the vote math in castPollVote so the UI can update the instant a
+// choice is tapped, before the Firestore transaction resolves. The live
+// onSnapshot listener reconciles any drift with the authoritative counts.
+function applyOptimisticVote(poll, previousChoiceId, choiceId) {
+  if (!poll || previousChoiceId === choiceId) return poll;
+  const choices = (poll.choices || []).map((choice) => {
+    if (choice.id === choiceId) return { ...choice, count: (choice.count || 0) + 1 };
+    if (choice.id === previousChoiceId) return { ...choice, count: Math.max(0, (choice.count || 0) - 1) };
+    return choice;
+  });
+  const totalVotes = (poll.totalVotes || 0) + (previousChoiceId ? 0 : 1);
+  return { ...poll, choices, totalVotes };
+}
+
 // Compact, self-contained voting control for a single poll. Subscribes to the
 // live poll doc and the current user's vote so it can be dropped anywhere
 // (settings, profile, right-rail rankings) and stay in sync.
@@ -45,10 +59,22 @@ export default function QuickVote({ poll, compact = false }) {
   const totalVotes = livePoll?.totalVotes || 0;
 
   const handleVote = async (choiceId) => {
+    if (userVote === choiceId) return;
     setBusyId(choiceId);
+
+    // Optimistic update: reflect the vote immediately so the tap feels instant
+    // instead of waiting on the Firestore transaction round-trip.
+    const prevPoll = livePoll;
+    const prevVote = userVote;
+    setLivePoll((current) => applyOptimisticVote(current, prevVote, choiceId));
+    setUserVote(choiceId);
+
     try {
       await castPollVote(pollId, choiceId);
     } catch (error) {
+      // Roll back the optimistic change if the write fails.
+      setLivePoll(prevPoll);
+      setUserVote(prevVote);
       if (error instanceof PhoneVerificationRequiredError || error?.code === 'phone-verification-required') {
         setPendingChoice(choiceId);
         setShowVerify(true);

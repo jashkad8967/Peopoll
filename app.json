@@ -26,6 +26,13 @@
       },
       "package": "com.jkapplications.peopoll"
     },
+    "web": {
+      "favicon": "./assets/favicon.png",
+      "name": "Peopoll",
+      "shortName": "Peopoll",
+      "themeColor": "#0095f6",
+      "backgroundColor": "#ffffff"
+    },
     "newArchEnabled": false,
     "updates": {
       "enabled": false,
