@@ -176,7 +176,7 @@ if ($doMobile) {
     else {
         # Full native build (new binary for the stores).
         Invoke-Step "Building native app (eas build, $easPlatform / $Profile)" {
-            eas build --platform $using:easPlatform --profile $using:Profile --non-interactive
+            eas build --platform $using:easPlatform --profile $using:Profile --non-interactive --auto-submit
         }
         if ($Submit) {
             Invoke-Step "Submitting to stores (eas submit, $easPlatform)" {
